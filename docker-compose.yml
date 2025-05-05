@@ -1,0 +1,66 @@
+services:
+  db:
+    image: postgis/postgis
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: pwd123
+      POSTGRES_USER: root
+      POSTGRES_DB: litter_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./data:/data
+      - ./docker/initdb:/docker-entrypoint-initdb.d
+      - pgdata:/var/lib/postgresql/data
+
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - "8080:8080"
+
+  spark:
+    build: .
+    image: custom-spark-notebook
+    environment:
+      - CHOWN_EXTRA=/home/jovyan/work
+      - CHOWN_EXTRA_OPTS=-R
+    user: root
+    ports:
+      - "8888:8888"
+      - "4040:4040"
+      - "8000:8000"
+    volumes:
+      - ./notebooks:/home/jovyan/work
+      - ./notebooks/models:/home/jovyan/models
+      - ./data:/home/jovyan/data
+      - ./scripts:/home/jovyan/scripts
+    command: >
+      /bin/bash -c "
+      pip install pyproj &&
+      python ./scripts/create_test_data.py &&
+      start-notebook.sh
+      "
+
+  spark-worker:
+    build: .
+    image: custom-spark-notebook
+    depends_on:
+      - spark
+    environment:
+      - CHOWN_EXTRA=/home/jovyan/work
+      - CHOWN_EXTRA_OPTS=-R
+    user: root
+    ports:
+      - "4041:4041"
+    volumes:
+      - ./notebooks:/home/jovyan/work
+      - ./notebooks/models:/home/jovyan/models
+      - ./data:/home/jovyan/data
+
+networks:
+  default:
+    driver: bridge
+
+volumes:
+  pgdata:
